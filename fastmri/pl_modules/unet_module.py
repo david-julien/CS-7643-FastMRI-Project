@@ -81,10 +81,14 @@ class UnetModule(MriModule):
     def forward(self, image):
         return self.unet(image.unsqueeze(1)).squeeze(1)
 
+    def weighted_l1_loss(self, output, target, weights):
+        _, Y, X = output.shape
+        return torch.sum(weights * torch.abs(output - target)) / (Y * X)
+
     def training_step(self, batch, batch_idx):
         output = self(batch.image)
-        loss = F.l1_loss(output, batch.target)
-
+        # loss = F.l1_loss(output, batch.target)
+        loss = self.weighted_l1_loss(output, batch.target, batch.heatmap)
         self.log("loss", loss.detach())
 
         return loss

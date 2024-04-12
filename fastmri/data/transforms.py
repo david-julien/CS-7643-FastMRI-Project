@@ -268,6 +268,7 @@ class UnetSample(NamedTuple):
         fname: File name.
         slice_num: The slice index.
         max_value: Maximum image value.
+        heatmap: ROI heatmap for associated slice
     """
 
     image: torch.Tensor
@@ -277,6 +278,7 @@ class UnetSample(NamedTuple):
     fname: str
     slice_num: int
     max_value: float
+    heatmap: torch.Tensor
 
 
 class UnetDataTransform:
@@ -289,6 +291,7 @@ class UnetDataTransform:
         which_challenge: str,
         mask_func: Optional[MaskFunc] = None,
         use_seed: bool = True,
+        heatmaps: Optional[np.array] = None,
     ):
         """
         Args:
@@ -298,6 +301,9 @@ class UnetDataTransform:
             use_seed: If true, this class computes a pseudo random number
                 generator seed from the filename. This ensures that the same
                 mask is used for all the slices of a given volume every time.
+            heatmaps: 3D numpy array, (N, Y, X), containing the ROI heatmaps for
+                every slice. N is the number of slices, Y is the height of the
+                heatmap, and X is the width.
         """
         if which_challenge not in ("singlecoil", "multicoil"):
             raise ValueError("Challenge should either be 'singlecoil' or 'multicoil'")
@@ -305,6 +311,7 @@ class UnetDataTransform:
         self.mask_func = mask_func
         self.which_challenge = which_challenge
         self.use_seed = use_seed
+        self.heatmaps = heatmaps
 
     def __call__(
         self,
@@ -378,6 +385,10 @@ class UnetDataTransform:
         else:
             target_torch = torch.Tensor([0])
 
+        heatmap = torch.zeros(50, 320, 320)
+        if self.heatmaps is not None:
+            heatmap = torch.Tensor(self.heatmaps[slice_num])
+
         return UnetSample(
             image=image,
             target=target_torch,
@@ -386,6 +397,7 @@ class UnetDataTransform:
             fname=fname,
             slice_num=slice_num,
             max_value=max_value,
+            heatmap=heatmap
         )
 
 

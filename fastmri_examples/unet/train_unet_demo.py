@@ -16,6 +16,7 @@ from fastmri.data.subsample import create_mask_for_mask_type
 from fastmri.data.transforms import UnetDataTransform
 from fastmri.pl_modules import FastMriDataModule, UnetModule
 
+from generate_heatmaps import generate_heatmaps
 
 def cli_main(args):
     pl.seed_everything(args.seed)
@@ -27,9 +28,18 @@ def cli_main(args):
     mask = create_mask_for_mask_type(
         args.mask_type, args.center_fractions, args.accelerations
     )
+
+    train_heatmaps = generate_heatmaps(dataset_path=args.data_path,
+                                       annotations_path=args.annotations_path,
+                                       dataset_type="train")
+
+    val_heatmaps = generate_heatmaps(dataset_path=args.data_path,
+                                     annotations_path=args.annotations_path,
+                                     dataset_type="val")
+
     # use random masks for train transform, fixed masks for val transform
-    train_transform = UnetDataTransform(args.challenge, mask_func=mask, use_seed=False)
-    val_transform = UnetDataTransform(args.challenge, mask_func=mask)
+    train_transform = UnetDataTransform(args.challenge, mask_func=mask, use_seed=False, heatmaps=train_heatmaps)
+    val_transform = UnetDataTransform(args.challenge, mask_func=mask, heatmaps=val_heatmaps)
     test_transform = UnetDataTransform(args.challenge)
     # ptl data module - this handles data loaders
     data_module = FastMriDataModule(
@@ -120,6 +130,11 @@ def build_args():
         default=[4],
         type=int,
         help="Acceleration rates to use for masks",
+    )
+    parser.add_argument(
+        "--annotations_path",
+        type=str,
+        help="Path to annotations file",
     )
 
     # data config with path to fastMRI data and batch size
