@@ -276,7 +276,7 @@ class SliceDataset(torch.utils.data.Dataset):
         )
         self.raw_samples = []
         if raw_sample_filter is None:
-            self.raw_sample_filter = lambda raw_sample: True
+            self.raw_sample_filter = self.raw_sample_filter_function
         else:
             self.raw_sample_filter = raw_sample_filter
 
@@ -339,6 +339,9 @@ class SliceDataset(torch.utils.data.Dataset):
                 for ex in self.raw_samples
                 if ex[2]["encoding_size"][1] in num_cols  # type: ignore
             ]
+
+    def raw_sample_filter_function(self, raw_sample):
+        return True
 
     def _retrieve_metadata(self, fname):
         with h5py.File(fname, "r") as hf:
