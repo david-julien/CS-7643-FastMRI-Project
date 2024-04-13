@@ -87,9 +87,10 @@ class UnetModule(MriModule):
 
     def training_step(self, batch, batch_idx):
         output = self(batch.image)
-        # loss = F.l1_loss(output, batch.target)
+        l1_loss = F.l1_loss(output, batch.target)
         loss = self.weighted_l1_loss(output, batch.target, batch.heatmap)
         self.log("loss", loss.detach())
+        self.log("l1_loss", l1_loss.detach())
 
         return loss
 

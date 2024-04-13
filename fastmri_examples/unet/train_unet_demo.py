@@ -9,6 +9,8 @@ import os
 import pathlib
 from argparse import ArgumentParser
 
+import sys
+
 import pytorch_lightning as pl
 
 from fastmri.data.mri_data import fetch_dir
@@ -17,6 +19,45 @@ from fastmri.data.transforms import UnetDataTransform
 from fastmri.pl_modules import FastMriDataModule, UnetModule
 
 from generate_heatmaps import generate_heatmaps
+
+
+class MyProgressBar(pl.callbacks.TQDMProgressBar):
+    # This class prevents the progress bar from printing on a new line every time.
+    # Source: https://github.com/Lightning-AI/pytorch-lightning/issues/15283#issuecomment-1289654353
+
+    def init_train_tqdm(self):
+        bar = super().init_train_tqdm()
+        bar.position = 0
+        bar.leave = True
+        # if not sys.stdout.isatty():
+        #     bar.disable = True
+        return bar
+
+
+    def init_validation_tqdm(self):
+        bar = super().init_validation_tqdm()
+        bar.position = 0
+        bar.leave = True
+        # if not sys.stdout.isatty():
+        #     bar.disable = True
+        return bar
+
+    def init_predict_tqdm(self):
+        bar = super().init_predict_tqdm()
+        bar.position = 0
+        bar.leave = True
+        # if not sys.stdout.isatty():
+        #     bar.disable = True
+        return bar
+
+    def init_test_tqdm(self):
+        bar = super().init_test_tqdm()
+        bar.position = 0
+        bar.leave = True
+        # if not sys.stdout.isatty():
+        #     bar.disable = True
+        return bar
+
 
 def cli_main(args):
     pl.seed_everything(args.seed)
@@ -181,7 +222,8 @@ def build_args():
             verbose=True,
             monitor="validation_loss",
             mode="min",
-        )
+        ),
+        MyProgressBar()
     ]
 
     # set default checkpoint if one exists in our checkpoint directory
