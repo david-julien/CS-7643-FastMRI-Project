@@ -9,8 +9,6 @@ import os
 import pathlib
 from argparse import ArgumentParser
 
-import sys
-
 import pytorch_lightning as pl
 
 from fastmri.data.mri_data import fetch_dir

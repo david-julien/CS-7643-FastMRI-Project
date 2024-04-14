@@ -42,6 +42,9 @@ def generate_heatmaps(dataset_path, annotations_path, dataset_type="train"):
     denominator[denominator == 0] = 1
     heatmaps = numerator / denominator
 
+    min_val = 0.2
+    heatmaps = (1 - min_val) * heatmaps + min_val
+
     # Flip the heatmaps across the y-axis, since the bounding boxes are upside down
     heatmaps[:] = heatmaps[:, ::-1, :]
 
@@ -83,7 +86,7 @@ if __name__ == "__main__":
     ax = ax.flatten()
     for slc in range(NUM_SLICES):
         ax[slc].set_title(slc)
-        heatmap = ax[slc].imshow(heatmaps[slc], cmap="hot")
+        heatmap = ax[slc].imshow(heatmaps[slc], cmap="hot", vmin=0)
         fig.colorbar(heatmap, ax=ax[slc])
 
     plt.tight_layout()

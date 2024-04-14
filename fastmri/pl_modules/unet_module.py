@@ -81,16 +81,18 @@ class UnetModule(MriModule):
     def forward(self, image):
         return self.unet(image.unsqueeze(1)).squeeze(1)
 
+    def weighted_mae(self, output, target, weights):
+        return weights * torch.abs(output - target)
+
     def weighted_l1_loss(self, output, target, weights):
         _, Y, X = output.shape
-        return torch.sum(weights * torch.abs(output - target)) / (Y * X)
+        return torch.sum(self.weighted_mae(output, target, weights)) / (Y * X)
 
     def training_step(self, batch, batch_idx):
         output = self(batch.image)
         l1_loss = F.l1_loss(output, batch.target)
         loss = self.weighted_l1_loss(output, batch.target, batch.heatmap)
-        self.log("loss", loss.detach())
-        self.log("l1_loss", l1_loss.detach())
+        self.log_dict({"loss": loss.detach(), "l1_loss": l1_loss.detach()})
 
         return loss
 
@@ -106,8 +108,36 @@ class UnetModule(MriModule):
             "max_value": batch.max_value,
             "output": output * std + mean,
             "target": batch.target * std + mean,
+            "heatmap": batch.heatmap,
             "val_loss": F.l1_loss(output, batch.target),
         }
+
+    def validation_step_end(self, val_logs):
+        results = super().validation_step_end(val_logs)
+
+        # log images to tensorboard
+        if isinstance(val_logs["batch_idx"], int):
+            batch_indices = [val_logs["batch_idx"]]
+        else:
+            batch_indices = val_logs["batch_idx"]
+        for i, batch_idx in enumerate(batch_indices):
+            if batch_idx in self.val_log_indices:
+                key = f"val_images_idx_{batch_idx}"
+                target = val_logs["target"][i].unsqueeze(0)
+                output = val_logs["output"][i].unsqueeze(0)
+                heatmap = val_logs["heatmap"][i].unsqueeze(0)
+                error = self.weighted_mae(output, target, heatmap)
+                output_focus_area = (heatmap * output)
+                output_focus_area = output_focus_area / output_focus_area.max()
+                target_focus_area = (heatmap * target)
+                target_focus_area = target_focus_area / target_focus_area.max()
+                error = error / error.max()
+                self.log_image(f"{key}/weighted_mae", error)
+                self.log_image(f"{key}/heatmap", heatmap)
+                self.log_image(f"{key}/output_focus_area (heatmap * output)", output_focus_area)
+                self.log_image(f"{key}/target_focus_area (heatmap * target)", target_focus_area)
+
+        return results
 
     def test_step(self, batch, batch_idx):
         output = self.forward(batch.image)
