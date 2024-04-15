@@ -13,6 +13,12 @@ from torch.nn import functional as F
 from fastmri.models import Unet
 
 from .mri_module import MriModule
+from enum import Enum
+
+
+class Loss(Enum):
+    MAE = "mae"
+    WMAE = "wmae"
 
 
 class UnetModule(MriModule):
@@ -27,6 +33,7 @@ class UnetModule(MriModule):
 
     def __init__(
         self,
+        loss=Loss.MAE.value,
         in_chans=1,
         out_chans=1,
         chans=32,
@@ -60,6 +67,11 @@ class UnetModule(MriModule):
         super().__init__(**kwargs)
         self.save_hyperparameters()
 
+        possible_loss_functions = [l.value for l in Loss]
+        if loss not in possible_loss_functions:
+            raise Exception(f"loss is set to: {loss} but must be one of {possible_loss_functions}")
+
+        self.loss = loss
         self.in_chans = in_chans
         self.out_chans = out_chans
         self.chans = chans
@@ -90,9 +102,15 @@ class UnetModule(MriModule):
 
     def training_step(self, batch, batch_idx):
         output = self(batch.image)
-        l1_loss = F.l1_loss(output, batch.target)
-        loss = self.weighted_l1_loss(output, batch.target, batch.heatmap)
-        self.log_dict({"loss": loss.detach(), "l1_loss": l1_loss.detach()})
+
+        loss = None
+        if self.loss == Loss.MAE.value:
+            loss = F.l1_loss(output, batch.target)
+            self.log("loss", loss)
+        elif self.loss == Loss.WMAE.value:
+            l1_loss = F.l1_loss(output, batch.target)
+            loss = self.weighted_l1_loss(output, batch.target, batch.heatmap)
+            self.log_dict({"loss": loss.detach(), "l1_loss": l1_loss.detach()})
 
         return loss
 
@@ -114,6 +132,10 @@ class UnetModule(MriModule):
 
     def validation_step_end(self, val_logs):
         results = super().validation_step_end(val_logs)
+
+        if self.loss != Loss.WMAE:
+            # This section is specific to wmae. If using a different loss we can skip it
+            return results
 
         # log images to tensorboard
         if isinstance(val_logs["batch_idx"], int):

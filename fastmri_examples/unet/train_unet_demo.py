@@ -15,6 +15,7 @@ from fastmri.data.mri_data import fetch_dir
 from fastmri.data.subsample import create_mask_for_mask_type
 from fastmri.data.transforms import UnetDataTransform
 from fastmri.pl_modules import FastMriDataModule, UnetModule
+from fastmri.pl_modules.unet_module import Loss
 
 from generate_heatmaps import generate_heatmaps
 
@@ -56,17 +57,24 @@ def cli_main(args):
         args.mask_type, args.center_fractions, args.accelerations
     )
 
-    train_heatmaps = generate_heatmaps(dataset_path=args.data_path,
-                                       annotations_path=args.annotations_path,
-                                       dataset_type="train")
+    if args.loss == Loss.WMAE.value:
+        print("Using weighted mean average error")
+        train_heatmaps = generate_heatmaps(dataset_path=args.data_path,
+                                           annotations_path=args.annotations_path,
+                                           dataset_type="train")
 
-    val_heatmaps = generate_heatmaps(dataset_path=args.data_path,
-                                     annotations_path=args.annotations_path,
-                                     dataset_type="val")
+        val_heatmaps = generate_heatmaps(dataset_path=args.data_path,
+                                         annotations_path=args.annotations_path,
+                                         dataset_type="val")
 
-    # use random masks for train transform, fixed masks for val transform
-    train_transform = UnetDataTransform(args.challenge, mask_func=mask, use_seed=False, heatmaps=train_heatmaps)
-    val_transform = UnetDataTransform(args.challenge, mask_func=mask, heatmaps=val_heatmaps)
+        # use random masks for train transform, fixed masks for val transform
+        train_transform = UnetDataTransform(args.challenge, mask_func=mask, use_seed=False, heatmaps=train_heatmaps)
+        val_transform = UnetDataTransform(args.challenge, mask_func=mask, heatmaps=val_heatmaps)
+    else:
+        print("Using mean average error")
+        train_transform = UnetDataTransform(args.challenge, mask_func=mask, use_seed=False)
+        val_transform = UnetDataTransform(args.challenge, mask_func=mask)
+
     test_transform = UnetDataTransform(args.challenge)
     # ptl data module - this handles data loaders
     data_module = FastMriDataModule(
@@ -87,6 +95,7 @@ def cli_main(args):
     # model
     # ------------
     model = UnetModule(
+        loss=args.loss,
         in_chans=args.in_chans,
         out_chans=args.out_chans,
         chans=args.chans,
@@ -163,6 +172,14 @@ def build_args():
         type=str,
         help="Path to annotations file",
     )
+    parser.add_argument(
+        "--loss",
+        type=str,
+        choices=[Loss.MAE.value, Loss.WMAE.value],
+        default=Loss.MAE.value,
+        help="Type of loss function to be used. wmae is the weighted mae. If you specify wmae"
+             " you must specify the --annotations_path",
+    )
 
     # data config with path to fastMRI data and batch size
     parser = FastMriDataModule.add_data_specific_args(parser)
@@ -195,6 +212,9 @@ def build_args():
     )
 
     args = parser.parse_args()
+
+    if args.loss == Loss.WMAE.value and len(args.annotations_path) == 0:
+        raise Exception("must specify annotations path when using wmae")
 
     # configure checkpointing in checkpoint_dir
     checkpoint_dir = args.default_root_dir / "checkpoints"
