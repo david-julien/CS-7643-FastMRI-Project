@@ -133,7 +133,7 @@ class UnetModule(MriModule):
     def validation_step_end(self, val_logs):
         results = super().validation_step_end(val_logs)
 
-        if self.loss != Loss.WMAE:
+        if self.loss != Loss.WMAE.value:
             # This section is specific to wmae. If using a different loss we can skip it
             return results
 
