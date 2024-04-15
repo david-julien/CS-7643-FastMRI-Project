@@ -10,7 +10,20 @@ MAP_DIM = 320
 
 # calculate heatmap
 def generate_heatmaps(dataset_path, annotations_path, dataset_type="train"):
-    training_filenames = os.listdir(f"{dataset_path}/singlecoil_{dataset_type}")
+    if dataset_type not in ['train', 'val', 'test']:
+        raise Exception(f"dataset type must be one of train, val, or test, however it is currently set to {dataset_type}")
+
+    if not os.path.exists(annotations_path):
+        raise Exception(f"The following annotations path does not exist: {annotations_path}")
+
+    if not os.path.exists(dataset_path):
+        raise Exception(f"The following dataset path does not exist: {dataset_path}")
+
+    dataset_type_filepath = f"{dataset_path}/singlecoil_{dataset_type}"
+    if not os.path.exists(dataset_type_filepath):
+        raise Exception(f"The following path to the specific dataset type does not exist: {dataset_type_filepath}")
+
+    filenames = os.listdir(dataset_type_filepath)
     dtype = {
         "file": str,
         "slice": "Int64",
@@ -26,12 +39,13 @@ def generate_heatmaps(dataset_path, annotations_path, dataset_type="train"):
     annotations_df = annotations_df.dropna()
 
     heatmaps = np.zeros((NUM_SLICES, MAP_DIM, MAP_DIM))
+    num_heatmaps = 0
     for index, row in annotations_df.iterrows():
-        filename = row.file + ".h5"
-        if filename not in training_filenames:
+        if not any(row.file in file for file in filenames):
             continue
 
         heatmaps[row.slice, row.y : row.y + row.height, row.x : row.x + row.width] += 1
+        num_heatmaps += 1
 
     # Normalize the data using min/max scaling
     numerator = heatmaps - heatmaps.min(axis=(1, 2), keepdims=True)
@@ -47,6 +61,8 @@ def generate_heatmaps(dataset_path, annotations_path, dataset_type="train"):
 
     # Flip the heatmaps across the y-axis, since the bounding boxes are upside down
     heatmaps[:] = heatmaps[:, ::-1, :]
+
+    print(f"{num_heatmaps} heatmaps generated for {dataset_type} set")
 
     return heatmaps
 
@@ -67,9 +83,6 @@ def parse_args():
         help="type of dataset to get the heatmap from. i.e train, val, or test",
     )
     args = parser.parse_args()
-
-    if args.dataset_type not in ['train', 'val', 'test']:
-        raise Exception("--dataset_type must be one of train, val, or test")
 
     return args
 
