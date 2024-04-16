@@ -291,7 +291,7 @@ class UnetDataTransform:
         which_challenge: str,
         mask_func: Optional[MaskFunc] = None,
         use_seed: bool = True,
-        heatmaps: Optional[np.array] = None,
+        heatmaps: Optional[np.ndarray] = None,
     ):
         """
         Args:
@@ -321,7 +321,16 @@ class UnetDataTransform:
         attrs: Dict,
         fname: str,
         slice_num: int,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, str, int, float]:
+    ) -> Tuple[
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        str,
+        int,
+        float,
+        torch.Tensor,
+    ]:
         """
         Args:
             kspace: Input k-space of shape (num_coils, rows, cols) for
@@ -397,7 +406,7 @@ class UnetDataTransform:
             fname=fname,
             slice_num=slice_num,
             max_value=max_value,
-            heatmap=heatmap
+            heatmap=heatmap,
         )
 
 

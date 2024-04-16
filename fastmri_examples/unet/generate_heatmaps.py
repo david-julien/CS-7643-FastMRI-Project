@@ -1,8 +1,9 @@
 import os
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
 from argparse import ArgumentParser
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 
 NUM_SLICES = 50
 MAP_DIM = 320
@@ -10,18 +11,24 @@ MAP_DIM = 320
 
 # calculate heatmap
 def generate_heatmaps(dataset_path, annotations_path, dataset_type="train"):
-    if dataset_type not in ['train', 'val', 'test']:
-        raise Exception(f"dataset type must be one of train, val, or test, however it is currently set to {dataset_type}")
+    if dataset_type not in ["train", "val", "test"]:
+        raise Exception(
+            f"dataset type must be one of train, val, or test, however it is currently set to {dataset_type}"
+        )
 
     if not os.path.exists(annotations_path):
-        raise Exception(f"The following annotations path does not exist: {annotations_path}")
+        raise Exception(
+            f"The following annotations path does not exist: {annotations_path}"
+        )
 
     if not os.path.exists(dataset_path):
         raise Exception(f"The following dataset path does not exist: {dataset_path}")
 
     dataset_type_filepath = f"{dataset_path}/singlecoil_{dataset_type}"
     if not os.path.exists(dataset_type_filepath):
-        raise Exception(f"The following path to the specific dataset type does not exist: {dataset_type_filepath}")
+        raise Exception(
+            f"The following path to the specific dataset type does not exist: {dataset_type_filepath}"
+        )
 
     filenames = os.listdir(dataset_type_filepath)
     dtype = {
