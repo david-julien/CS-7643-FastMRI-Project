@@ -6,6 +6,7 @@ LICENSE file in the root directory of this source tree.
 """
 
 from argparse import ArgumentParser
+from enum import Enum
 
 import torch
 from torch.nn import functional as F
@@ -13,7 +14,6 @@ from torch.nn import functional as F
 from fastmri.models import Unet
 
 from .mri_module import MriModule
-from enum import Enum
 
 
 class Loss(Enum):
@@ -67,9 +67,11 @@ class UnetModule(MriModule):
         super().__init__(**kwargs)
         self.save_hyperparameters()
 
-        possible_loss_functions = [l.value for l in Loss]
+        possible_loss_functions = [loss_type.value for loss_type in Loss]
         if loss not in possible_loss_functions:
-            raise Exception(f"loss is set to: {loss} but must be one of {possible_loss_functions}")
+            raise Exception(
+                f"loss is set to: {loss} but must be one of {possible_loss_functions}"
+            )
 
         self.loss = loss
         self.in_chans = in_chans
@@ -149,15 +151,19 @@ class UnetModule(MriModule):
                 output = val_logs["output"][i].unsqueeze(0)
                 heatmap = val_logs["heatmap"][i].unsqueeze(0)
                 error = self.weighted_mae(output, target, heatmap)
-                output_focus_area = (heatmap * output)
+                output_focus_area = heatmap * output
                 output_focus_area = output_focus_area / output_focus_area.max()
-                target_focus_area = (heatmap * target)
+                target_focus_area = heatmap * target
                 target_focus_area = target_focus_area / target_focus_area.max()
                 error = error / error.max()
                 self.log_image(f"{key}/weighted_mae", error)
                 self.log_image(f"{key}/heatmap", heatmap)
-                self.log_image(f"{key}/output_focus_area (heatmap * output)", output_focus_area)
-                self.log_image(f"{key}/target_focus_area (heatmap * target)", target_focus_area)
+                self.log_image(
+                    f"{key}/output_focus_area (heatmap * output)", output_focus_area
+                )
+                self.log_image(
+                    f"{key}/target_focus_area (heatmap * target)", target_focus_area
+                )
 
         return results
 
