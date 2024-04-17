@@ -6,12 +6,15 @@ LICENSE file in the root directory of this source tree.
 """
 
 from argparse import ArgumentParser
+from collections import defaultdict
 from enum import Enum
 
 import torch
 from torch.nn import functional as F
 
+from fastmri import evaluate
 from fastmri.models import Unet
+from fastmri.pl_modules.mri_module import DistributedMetricSum
 
 from .mri_module import MriModule
 
@@ -33,6 +36,7 @@ class UnetModule(MriModule):
 
     def __init__(
         self,
+        roi_bounding_boxes=None,
         loss=Loss.MAE.value,
         in_chans=1,
         out_chans=1,
@@ -73,6 +77,9 @@ class UnetModule(MriModule):
                 f"loss is set to: {loss} but must be one of {possible_loss_functions}"
             )
 
+        self.ROI_SSIM = DistributedMetricSum()
+
+        self.roi_bounding_boxes = roi_bounding_boxes
         self.loss = loss
         self.in_chans = in_chans
         self.out_chans = out_chans
@@ -135,35 +142,84 @@ class UnetModule(MriModule):
     def validation_step_end(self, val_logs):
         results = super().validation_step_end(val_logs)
 
-        if self.loss != Loss.WMAE.value:
-            # This section is specific to wmae. If using a different loss we can skip it
-            return results
+        if self.loss == Loss.WMAE.value:
+            # log weighted images to tensorboard
+            if isinstance(val_logs["batch_idx"], int):
+                batch_indices = [val_logs["batch_idx"]]
+            else:
+                batch_indices = val_logs["batch_idx"]
+            for i, batch_idx in enumerate(batch_indices):
+                if batch_idx in self.val_log_indices:
+                    key = f"val_images_idx_{batch_idx}"
+                    target = val_logs["target"][i].unsqueeze(0)
+                    output = val_logs["output"][i].unsqueeze(0)
+                    heatmap = val_logs["heatmap"][i].unsqueeze(0)
+                    error = self.weighted_mae(output, target, heatmap)
+                    output_focus_area = heatmap * output
+                    output_focus_area = output_focus_area / output_focus_area.max()
+                    target_focus_area = heatmap * target
+                    target_focus_area = target_focus_area / target_focus_area.max()
+                    error = error / error.max()
+                    self.log_image(f"{key}/weighted_mae", error)
+                    self.log_image(f"{key}/heatmap", heatmap)
+                    self.log_image(
+                        f"{key}/output_focus_area (heatmap * output)", output_focus_area
+                    )
+                    self.log_image(
+                        f"{key}/target_focus_area (heatmap * target)", target_focus_area
+                    )
 
-        # log images to tensorboard
-        if isinstance(val_logs["batch_idx"], int):
-            batch_indices = [val_logs["batch_idx"]]
-        else:
-            batch_indices = val_logs["batch_idx"]
-        for i, batch_idx in enumerate(batch_indices):
-            if batch_idx in self.val_log_indices:
-                key = f"val_images_idx_{batch_idx}"
-                target = val_logs["target"][i].unsqueeze(0)
-                output = val_logs["output"][i].unsqueeze(0)
-                heatmap = val_logs["heatmap"][i].unsqueeze(0)
-                error = self.weighted_mae(output, target, heatmap)
-                output_focus_area = heatmap * output
-                output_focus_area = output_focus_area / output_focus_area.max()
-                target_focus_area = heatmap * target
-                target_focus_area = target_focus_area / target_focus_area.max()
-                error = error / error.max()
-                self.log_image(f"{key}/weighted_mae", error)
-                self.log_image(f"{key}/heatmap", heatmap)
-                self.log_image(
-                    f"{key}/output_focus_area (heatmap * output)", output_focus_area
+        # Aggregate roi ssim values
+        roi_ssim_vals = defaultdict(dict)
+        for i, fname in enumerate(val_logs["fname"]):
+            slice_num = int(val_logs["slice_num"][i].cpu())
+            maxval = val_logs["max_value"][i].cpu().numpy()
+            output = val_logs["output"][i].cpu().numpy()
+            target = val_logs["target"][i].cpu().numpy()
+
+            min_x, min_y, width, height = self.roi_bounding_boxes[slice_num]
+            target_roi = target[min_y : min_y + height, min_x : min_x + width]
+            output_roi = output[min_y : min_y + height, min_x : min_x + width]
+            roi_ssim_vals[fname][slice_num] = torch.tensor(
+                evaluate.ssim(
+                    target_roi[None, ...], output_roi[None, ...], maxval=maxval
                 )
-                self.log_image(
-                    f"{key}/target_focus_area (heatmap * target)", target_focus_area
-                )
+            ).view(1)
+
+        results.update({"roi_ssim_vals": roi_ssim_vals})
+
+        return results
+
+    def validation_epoch_end(self, val_logs):
+        results = super().validation_epoch_end(val_logs)
+
+        # Log ROI SSIM values
+        roi_ssim_vals = defaultdict(dict)
+        mse_vals = defaultdict(dict)
+        # use dict updates to handle duplicate slices
+        for val_log in val_logs:
+            for k in val_log["mse_vals"].keys():
+                mse_vals[k].update(val_log["mse_vals"][k])
+            for k in val_log["roi_ssim_vals"].keys():
+                roi_ssim_vals[k].update(val_log["roi_ssim_vals"][k])
+
+        # check to make sure we have all files in all metrics
+        assert mse_vals.keys() == roi_ssim_vals.keys()
+
+        # apply means across image volumes
+        metrics = {"roi_ssim": 0}
+        local_examples = 0
+        for fname in mse_vals.keys():
+            local_examples = local_examples + 1
+            metrics["roi_ssim"] = metrics["roi_ssim"] + torch.mean(
+                torch.cat([v.view(-1) for _, v in roi_ssim_vals[fname].items()])
+            )
+
+        # reduce across ddp via sum
+        metrics["roi_ssim"] = self.ROI_SSIM(metrics["roi_ssim"])
+        tot_examples = self.TotExamples(torch.tensor(local_examples))
+
+        self.log(f"val_metrics/roi_ssim", metrics["roi_ssim"] / tot_examples)
 
         return results
 

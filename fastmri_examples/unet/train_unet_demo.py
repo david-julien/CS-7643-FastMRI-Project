@@ -10,7 +10,7 @@ import pathlib
 from argparse import ArgumentParser
 
 import pytorch_lightning as pl
-from generate_heatmaps import generate_heatmaps
+from generate_heatmaps import generate_heatmap_bounding_boxes, generate_heatmaps
 from pytorch_lightning.loggers import TensorBoardLogger
 
 from fastmri.data.mri_data import fetch_dir
@@ -59,31 +59,24 @@ def cli_main(args):
 
     if args.loss == Loss.WMAE.value:
         print("Using weighted mean average error")
-        train_heatmaps = generate_heatmaps(
-            dataset_path=args.data_path,
-            annotations_path=args.annotations_path,
-            dataset_type="train",
-        )
-
-        val_heatmaps = generate_heatmaps(
-            dataset_path=args.data_path,
-            annotations_path=args.annotations_path,
-            dataset_type="val",
-        )
-
-        # use random masks for train transform, fixed masks for val transform
-        train_transform = UnetDataTransform(
-            args.challenge, mask_func=mask, use_seed=False, heatmaps=train_heatmaps
-        )
-        val_transform = UnetDataTransform(
-            args.challenge, mask_func=mask, heatmaps=val_heatmaps
-        )
     else:
         print("Using mean average error")
-        train_transform = UnetDataTransform(
-            args.challenge, mask_func=mask, use_seed=False
-        )
-        val_transform = UnetDataTransform(args.challenge, mask_func=mask)
+
+    train_heatmaps = generate_heatmaps(
+        dataset_path=args.data_path,
+        annotations_path=args.annotations_path,
+        dataset_type="train",
+    )
+
+    roi_bounding_boxes = generate_heatmap_bounding_boxes(train_heatmaps)
+
+    # use random masks for train transform, fixed masks for val transform
+    train_transform = UnetDataTransform(
+        args.challenge, mask_func=mask, use_seed=False, heatmaps=train_heatmaps
+    )
+    val_transform = UnetDataTransform(
+        args.challenge, mask_func=mask, heatmaps=train_heatmaps
+    )
 
     test_transform = UnetDataTransform(args.challenge)
     # ptl data module - this handles data loaders
@@ -105,6 +98,7 @@ def cli_main(args):
     # model
     # ------------
     model = UnetModule(
+        roi_bounding_boxes=roi_bounding_boxes,
         loss=args.loss,
         in_chans=args.in_chans,
         out_chans=args.out_chans,

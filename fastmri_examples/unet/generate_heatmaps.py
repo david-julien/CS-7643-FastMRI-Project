@@ -142,7 +142,7 @@ def parse_args():
     return args
 
 
-def generate_bounding_box(heatmap, min=0.2):
+def generate_heatmap_bounding_box(heatmap, min=0.2):
     """
 
     Args:
@@ -154,16 +154,18 @@ def generate_bounding_box(heatmap, min=0.2):
     """
     nonzero_indexes = np.nonzero(heatmap > min)
     if len(nonzero_indexes[0]) < 1:
-        return 0, 0, 0, 0
+        # Generate default bounding box in center of image if slice contains no data
+        return MAP_DIM // 4, MAP_DIM // 4, MAP_DIM // 2, MAP_DIM // 2
 
     min_x = nonzero_indexes[1].min()
     max_x = nonzero_indexes[1].max()
     min_y = nonzero_indexes[0].min()
     max_y = nonzero_indexes[0].max()
+
     return min_x, min_y, max_x - min_x, max_y - min_y
 
 
-def generate_bounding_boxes(heatmaps):
+def generate_heatmap_bounding_boxes(heatmaps):
     """
 
     Args:
@@ -172,9 +174,9 @@ def generate_bounding_boxes(heatmaps):
     Returns: N X 4 ndarray, containing the bounding box coordinates for each slice's heatmap
 
     """
-    bounding_boxes = np.zeros((NUM_SLICES, 4))
+    bounding_boxes = np.zeros((NUM_SLICES, 4), dtype=int)
     for slc in range(NUM_SLICES):
-        bounding_boxes[slc] = generate_bounding_box(heatmaps[slc])
+        bounding_boxes[slc] = generate_heatmap_bounding_box(heatmaps[slc])
     return bounding_boxes
 
 
@@ -191,10 +193,10 @@ def plot():
     ax = ax.flatten()
     for slc in range(NUM_SLICES):
         ax[slc].set_title(slc)
-        heatmap = ax[slc].imshow(heatmaps[slc], cmap="hot", vmin=0)
+        heatmap = ax[slc].imshow(heatmaps[slc], cmap="hot", vmin=0, vmax=1)
 
         if args.bounding_box_min is not None:
-            min_x, min_y, width, height = generate_bounding_box(
+            min_x, min_y, width, height = generate_heatmap_bounding_box(
                 heatmaps[slc], min=args.bounding_box_min
             )
             # Source: https://stackoverflow.com/questions/37435369/how-to-draw-a-rectangle-on-image
