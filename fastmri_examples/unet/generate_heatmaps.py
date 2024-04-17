@@ -132,17 +132,16 @@ def parse_args():
         help="when the heatmap is normalized, all values in it will be between min_heatmap_value and 1 inclusive",
     )
     parser.add_argument(
-        "--bounding_box_min",
+        "--roi_min_value",
         type=float,
-        help="when specified, a bounding box is plotted over the heatmap where the edges of the heatmap are greater "
-        "than or equal to this min value",
+        help="when specified, all values outside the ROI bounding box are less than or equal to the roi_min_value",
     )
     args = parser.parse_args()
 
     return args
 
 
-def generate_heatmap_bounding_box(heatmap, min=0.2):
+def generate_roi(heatmap, min):
     """
 
     Args:
@@ -165,18 +164,19 @@ def generate_heatmap_bounding_box(heatmap, min=0.2):
     return min_x, min_y, max_x - min_x, max_y - min_y
 
 
-def generate_heatmap_bounding_boxes(heatmaps):
+def generate_rois(heatmaps, min):
     """
 
     Args:
         heatmaps: N x M x M ndarray, containing N heatmaps, one for each slice
+        min: all values outside the ROI bounding box are less than this value
 
     Returns: N X 4 ndarray, containing the bounding box coordinates for each slice's heatmap
 
     """
     bounding_boxes = np.zeros((NUM_SLICES, 4), dtype=int)
     for slc in range(NUM_SLICES):
-        bounding_boxes[slc] = generate_heatmap_bounding_box(heatmaps[slc])
+        bounding_boxes[slc] = generate_roi(heatmaps[slc], min=min)
     return bounding_boxes
 
 
@@ -195,9 +195,9 @@ def plot():
         ax[slc].set_title(slc)
         heatmap = ax[slc].imshow(heatmaps[slc], cmap="hot", vmin=0, vmax=1)
 
-        if args.bounding_box_min is not None:
-            min_x, min_y, width, height = generate_heatmap_bounding_box(
-                heatmaps[slc], min=args.bounding_box_min
+        if args.roi_min_value is not None:
+            min_x, min_y, width, height = generate_roi(
+                heatmaps[slc], min=args.roi_min_value
             )
             # Source: https://stackoverflow.com/questions/37435369/how-to-draw-a-rectangle-on-image
             rect = patches.Rectangle(

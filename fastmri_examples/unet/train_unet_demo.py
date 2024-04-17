@@ -10,7 +10,7 @@ import pathlib
 from argparse import ArgumentParser
 
 import pytorch_lightning as pl
-from generate_heatmaps import generate_heatmap_bounding_boxes, generate_heatmaps
+from generate_heatmaps import generate_heatmaps, generate_rois
 from pytorch_lightning.loggers import TensorBoardLogger
 
 from fastmri.data.mri_data import fetch_dir
@@ -68,7 +68,7 @@ def cli_main(args):
         dataset_type="train",
     )
 
-    roi_bounding_boxes = generate_heatmap_bounding_boxes(train_heatmaps)
+    roi_bounding_boxes = generate_rois(train_heatmaps, args.roi_min_value)
 
     # use random masks for train transform, fixed masks for val transform
     train_transform = UnetDataTransform(
@@ -177,6 +177,12 @@ def build_args():
         help="Path to annotations file",
     )
     parser.add_argument(
+        "--roi_min_value",
+        type=float,
+        default=0.2,
+        help="All values outside the ROI bounding box are less than or equal to the roi_min_value",
+    )
+    parser.add_argument(
         "--loss",
         type=str,
         choices=[Loss.MAE.value, Loss.WMAE.value],
@@ -220,8 +226,8 @@ def build_args():
 
     args = parser.parse_args()
 
-    if args.loss == Loss.WMAE.value and len(args.annotations_path) == 0:
-        raise Exception("must specify annotations path when using wmae")
+    if len(args.annotations_path) == 0:
+        raise Exception("must specify annotations path to calculate ROI SSIM")
 
     # configure checkpointing in checkpoint_dir
     checkpoint_dir = args.default_root_dir / "checkpoints"

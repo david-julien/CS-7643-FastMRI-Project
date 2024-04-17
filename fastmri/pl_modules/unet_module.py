@@ -169,57 +169,59 @@ class UnetModule(MriModule):
                         f"{key}/target_focus_area (heatmap * target)", target_focus_area
                     )
 
-        # Aggregate roi ssim values
-        roi_ssim_vals = defaultdict(dict)
-        for i, fname in enumerate(val_logs["fname"]):
-            slice_num = int(val_logs["slice_num"][i].cpu())
-            maxval = val_logs["max_value"][i].cpu().numpy()
-            output = val_logs["output"][i].cpu().numpy()
-            target = val_logs["target"][i].cpu().numpy()
+        if self.roi_bounding_boxes is not None:
+            # Aggregate roi ssim values
+            roi_ssim_vals = defaultdict(dict)
+            for i, fname in enumerate(val_logs["fname"]):
+                slice_num = int(val_logs["slice_num"][i].cpu())
+                maxval = val_logs["max_value"][i].cpu().numpy()
+                output = val_logs["output"][i].cpu().numpy()
+                target = val_logs["target"][i].cpu().numpy()
 
-            min_x, min_y, width, height = self.roi_bounding_boxes[slice_num]
-            target_roi = target[min_y : min_y + height, min_x : min_x + width]
-            output_roi = output[min_y : min_y + height, min_x : min_x + width]
-            roi_ssim_vals[fname][slice_num] = torch.tensor(
-                evaluate.ssim(
-                    target_roi[None, ...], output_roi[None, ...], maxval=maxval
-                )
-            ).view(1)
+                min_x, min_y, width, height = self.roi_bounding_boxes[slice_num]
+                target_roi = target[min_y : min_y + height, min_x : min_x + width]
+                output_roi = output[min_y : min_y + height, min_x : min_x + width]
+                roi_ssim_vals[fname][slice_num] = torch.tensor(
+                    evaluate.ssim(
+                        target_roi[None, ...], output_roi[None, ...], maxval=maxval
+                    )
+                ).view(1)
 
-        results.update({"roi_ssim_vals": roi_ssim_vals})
+            results.update({"roi_ssim_vals": roi_ssim_vals})
 
         return results
 
     def validation_epoch_end(self, val_logs):
         results = super().validation_epoch_end(val_logs)
 
-        # Log ROI SSIM values
-        roi_ssim_vals = defaultdict(dict)
-        mse_vals = defaultdict(dict)
-        # use dict updates to handle duplicate slices
-        for val_log in val_logs:
-            for k in val_log["mse_vals"].keys():
-                mse_vals[k].update(val_log["mse_vals"][k])
-            for k in val_log["roi_ssim_vals"].keys():
-                roi_ssim_vals[k].update(val_log["roi_ssim_vals"][k])
+        if self.roi_bounding_boxes is not None:
+            # Log ROI SSIM values
+            roi_ssim_vals = defaultdict(dict)
+            mse_vals = defaultdict(dict)
+            # use dict updates to handle duplicate slices
+            for val_log in val_logs:
+                for k in val_log["mse_vals"].keys():
+                    mse_vals[k].update(val_log["mse_vals"][k])
+                for k in val_log["roi_ssim_vals"].keys():
+                    roi_ssim_vals[k].update(val_log["roi_ssim_vals"][k])
 
-        # check to make sure we have all files in all metrics
-        assert mse_vals.keys() == roi_ssim_vals.keys()
+            # check to make sure we have all files in all metrics
+            assert mse_vals.keys() == roi_ssim_vals.keys()
 
-        # apply means across image volumes
-        metrics = {"roi_ssim": 0}
-        local_examples = 0
-        for fname in mse_vals.keys():
-            local_examples = local_examples + 1
-            metrics["roi_ssim"] = metrics["roi_ssim"] + torch.mean(
-                torch.cat([v.view(-1) for _, v in roi_ssim_vals[fname].items()])
-            )
+            # apply means across image volumes
+            metrics = {"roi_ssim": 0}
+            local_examples = 0
+            for fname in mse_vals.keys():
+                local_examples = local_examples + 1
+                metrics["roi_ssim"] = metrics["roi_ssim"] + torch.mean(
+                    torch.cat([v.view(-1) for _, v in roi_ssim_vals[fname].items()])
+                )
 
-        # reduce across ddp via sum
-        metrics["roi_ssim"] = self.ROI_SSIM(metrics["roi_ssim"])
-        tot_examples = self.TotExamples(torch.tensor(local_examples))
+            # reduce across ddp via sum
+            metrics["roi_ssim"] = self.ROI_SSIM(metrics["roi_ssim"])
+            tot_examples = self.TotExamples(torch.tensor(local_examples))
 
-        self.log(f"val_metrics/roi_ssim", metrics["roi_ssim"] / tot_examples)
+            self.log("val_metrics/roi_ssim", metrics["roi_ssim"] / tot_examples)
 
         return results
 
