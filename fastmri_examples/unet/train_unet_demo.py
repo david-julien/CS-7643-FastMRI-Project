@@ -66,6 +66,7 @@ def cli_main(args):
         dataset_path=args.data_path,
         annotations_path=args.annotations_path,
         dataset_type="train",
+        heatmap_min_value=args.heatmap_min_value,
     )
 
     roi_bounding_boxes = generate_rois(train_heatmaps, args.roi_min_value)
@@ -181,6 +182,12 @@ def build_args():
         type=float,
         default=0.2,
         help="All values outside the ROI bounding box are less than or equal to the roi_min_value",
+    )
+    parser.add_argument(
+        "--heatmap_min_value",
+        type=float,
+        default=0.2,
+        help="This is the minimium value that any given cell in the heatmap will take after normalization"
     )
     parser.add_argument(
         "--loss",

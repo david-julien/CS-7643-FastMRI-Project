@@ -42,11 +42,11 @@ def generate_heatmaps(
     dataset_path,
     annotations_path,
     dataset_type="train",
-    min_heatmap_value=0.2,
+    heatmap_min_value=0.2,
 ):
-    if min_heatmap_value < 0 or min_heatmap_value > 1:
+    if heatmap_min_value < 0 or heatmap_min_value > 1:
         raise Exception(
-            f"min heatmap value must be between 0 and 1 inclusive, however it is currently set to {min_heatmap_value}"
+            f"min heatmap value must be between 0 and 1 inclusive, however it is currently set to {heatmap_min_value}"
         )
 
     if dataset_type not in ["train", "val", "test", "all"]:
@@ -96,7 +96,7 @@ def generate_heatmaps(
         heatmaps[row.slice, row.y : row.y + row.height, row.x : row.x + row.width] += 1
         num_heatmaps += 1
 
-    heatmaps = min_max_scaler(heatmaps, min=min_heatmap_value)
+    heatmaps = min_max_scaler(heatmaps, min=heatmap_min_value)
 
     # Flip the heatmaps across the y-axis, since the bounding boxes are upside down
     heatmaps[:] = heatmaps[:, ::-1, :]
@@ -126,10 +126,10 @@ def parse_args():
         help="type of dataset to get the heatmap from. i.e train, val, test, or all",
     )
     parser.add_argument(
-        "--min_heatmap_value",
+        "--heatmap_min_value",
         type=float,
         default=0.2,
-        help="when the heatmap is normalized, all values in it will be between min_heatmap_value and 1 inclusive",
+        help="when the heatmap is normalized, all values in it will be between heatmap_min_value and 1 inclusive",
     )
     parser.add_argument(
         "--roi_min_value",
@@ -186,7 +186,7 @@ def plot():
         dataset_path=args.dataset_path,
         annotations_path=args.annotations_path,
         dataset_type=args.dataset_type,
-        min_heatmap_value=args.min_heatmap_value,
+        heatmap_min_value=args.heatmap_min_value,
     )
 
     fig, ax = plt.subplots(10, 5, figsize=(20, 20))
