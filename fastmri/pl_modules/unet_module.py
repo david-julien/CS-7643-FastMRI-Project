@@ -128,7 +128,7 @@ class UnetModule(MriModule):
         mean = batch.mean.unsqueeze(1).unsqueeze(2)
         std = batch.std.unsqueeze(1).unsqueeze(2)
 
-        return {
+        results = {
             "batch_idx": batch_idx,
             "fname": batch.fname,
             "slice_num": batch.slice_num,
@@ -136,9 +136,20 @@ class UnetModule(MriModule):
             "output": output * std + mean,
             "target": batch.target * std + mean,
             "heatmap": batch.heatmap,
-            "l1_loss": F.l1_loss(output, batch.target),
-            "val_loss": self.weighted_l1_loss(output, batch.target, batch.heatmap),
+            "val_loss": F.l1_loss(output, batch.target),
         }
+
+        if self.loss == Loss.WMAE.value:
+            results.update(
+                {
+                    "val_loss": self.weighted_l1_loss(
+                        output, batch.target, batch.heatmap
+                    ),
+                    "l1_loss": F.l1_loss(output, batch.target),
+                }
+            )
+
+        return results
 
     def validation_step_end(self, val_logs):
         results = super().validation_step_end(val_logs)
