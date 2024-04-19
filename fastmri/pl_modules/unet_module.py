@@ -137,6 +137,7 @@ class UnetModule(MriModule):
             "target": batch.target * std + mean,
             "heatmap": batch.heatmap,
             "val_loss": F.l1_loss(output, batch.target),
+            "val_loss": self.weighted_l1_loss(output, batch.target, batch.heatmap),
         }
 
     def validation_step_end(self, val_logs):
