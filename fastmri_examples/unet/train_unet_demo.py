@@ -187,7 +187,7 @@ def build_args():
         "--heatmap_min_value",
         type=float,
         default=0.2,
-        help="This is the minimium value that any given cell in the heatmap will take after normalization"
+        help="This is the minimium value that any given cell in the heatmap will take after normalization",
     )
     parser.add_argument(
         "--loss",
