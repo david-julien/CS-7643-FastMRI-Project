@@ -136,7 +136,7 @@ class UnetModule(MriModule):
             "output": output * std + mean,
             "target": batch.target * std + mean,
             "heatmap": batch.heatmap,
-            "val_loss": F.l1_loss(output, batch.target),
+            "l1_loss": F.l1_loss(output, batch.target),
             "val_loss": self.weighted_l1_loss(output, batch.target, batch.heatmap),
         }
 
