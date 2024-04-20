@@ -18,7 +18,7 @@ from fastmri.data.subsample import create_mask_for_mask_type
 from fastmri.data.transforms import UnetDataTransform
 from fastmri.pl_modules import FastMriDataModule, UnetModule
 from fastmri.pl_modules.unet_module import Loss
-
+from fastmri.data import FastMRIRawDataSample
 
 class MyProgressBar(pl.callbacks.TQDMProgressBar):
     # This class prevents the progress bar from printing on a new line every time.
@@ -86,6 +86,13 @@ def cli_main(args):
         val_transform = UnetDataTransform(args.challenge, mask_func=mask)
 
     test_transform = UnetDataTransform(args.challenge)
+
+    def custom_train_filter(raw_sample: FastMRIRawDataSample) -> bool:
+        if raw_sample.slice_ind < args.prune_left_bound_idx or raw_sample.slice_ind > args.prune_right_bound_idx:
+            return False
+        return True
+
+
     # ptl data module - this handles data loaders
     data_module = FastMriDataModule(
         data_path=args.data_path,
@@ -99,6 +106,8 @@ def cli_main(args):
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         distributed_sampler=(args.accelerator in ("ddp", "ddp_cpu")),
+        # customly added filter to prune edge slices
+        train_filter=custom_train_filter
     )
 
     # ------------

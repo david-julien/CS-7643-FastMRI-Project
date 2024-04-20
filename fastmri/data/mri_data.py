@@ -303,6 +303,7 @@ class SliceDataset(torch.utils.data.Dataset):
                 new_raw_samples = []
                 for slice_ind in range(num_slices):
                     raw_sample = FastMRIRawDataSample(fname, slice_ind, metadata)
+                    # train_filter from Unet is applied here
                     if self.raw_sample_filter(raw_sample):
                         new_raw_samples.append(raw_sample)
 
