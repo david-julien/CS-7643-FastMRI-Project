@@ -106,8 +106,7 @@ class UnetModule(MriModule):
         return weights * torch.abs(output - target)
 
     def weighted_l1_loss(self, output, target, weights):
-        _, Y, X = output.shape
-        return torch.sum(self.weighted_mae(output, target, weights)) / (Y * X)
+        return torch.sum(self.weighted_mae(output, target, weights)) / torch.sum(weights)
 
     def training_step(self, batch, batch_idx):
         output = self(batch.image)
