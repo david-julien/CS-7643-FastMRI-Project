@@ -10,7 +10,7 @@ import pathlib
 from argparse import ArgumentParser
 
 import pytorch_lightning as pl
-from generate_heatmaps import generate_heatmaps
+from generate_heatmaps import generate_heatmaps, generate_rois
 from pytorch_lightning.loggers import TensorBoardLogger
 
 from fastmri.data.mri_data import fetch_dir
@@ -59,31 +59,25 @@ def cli_main(args):
 
     if args.loss == Loss.WMAE.value:
         print("Using weighted mean average error")
-        train_heatmaps = generate_heatmaps(
-            dataset_path=args.data_path,
-            annotations_path=args.annotations_path,
-            dataset_type="train",
-        )
-
-        val_heatmaps = generate_heatmaps(
-            dataset_path=args.data_path,
-            annotations_path=args.annotations_path,
-            dataset_type="val",
-        )
-
-        # use random masks for train transform, fixed masks for val transform
-        train_transform = UnetDataTransform(
-            args.challenge, mask_func=mask, use_seed=False, heatmaps=train_heatmaps
-        )
-        val_transform = UnetDataTransform(
-            args.challenge, mask_func=mask, heatmaps=val_heatmaps
-        )
     else:
         print("Using mean average error")
-        train_transform = UnetDataTransform(
-            args.challenge, mask_func=mask, use_seed=False
-        )
-        val_transform = UnetDataTransform(args.challenge, mask_func=mask)
+
+    train_heatmaps = generate_heatmaps(
+        dataset_path=args.data_path,
+        annotations_path=args.annotations_path,
+        dataset_type="train",
+        heatmap_min_value=args.heatmap_min_value,
+    )
+
+    roi_bounding_boxes = generate_rois(train_heatmaps, args.roi_min_value)
+
+    # use random masks for train transform, fixed masks for val transform
+    train_transform = UnetDataTransform(
+        args.challenge, mask_func=mask, use_seed=False, heatmaps=train_heatmaps
+    )
+    val_transform = UnetDataTransform(
+        args.challenge, mask_func=mask, heatmaps=train_heatmaps
+    )
 
     test_transform = UnetDataTransform(args.challenge)
 
@@ -114,6 +108,7 @@ def cli_main(args):
     # model
     # ------------
     model = UnetModule(
+        roi_bounding_boxes=roi_bounding_boxes,
         loss=args.loss,
         in_chans=args.in_chans,
         out_chans=args.out_chans,
@@ -192,6 +187,18 @@ def build_args():
         help="Path to annotations file",
     )
     parser.add_argument(
+        "--roi_min_value",
+        type=float,
+        default=0.2,
+        help="All values outside the ROI bounding box are less than or equal to the roi_min_value",
+    )
+    parser.add_argument(
+        "--heatmap_min_value",
+        type=float,
+        default=0.2,
+        help="This is the minimium value that any given cell in the heatmap will take after normalization",
+    )
+    parser.add_argument(
         "--loss",
         type=str,
         choices=[Loss.MAE.value, Loss.WMAE.value],
@@ -235,8 +242,8 @@ def build_args():
 
     args = parser.parse_args()
 
-    if args.loss == Loss.WMAE.value and len(args.annotations_path) == 0:
-        raise Exception("must specify annotations path when using wmae")
+    if len(args.annotations_path) == 0:
+        raise Exception("must specify annotations path to calculate ROI SSIM")
 
     # configure checkpointing in checkpoint_dir
     checkpoint_dir = args.default_root_dir / "checkpoints"
