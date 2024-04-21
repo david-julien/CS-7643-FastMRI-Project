@@ -209,13 +209,13 @@ def build_args():
     )
     parser.add_argument(
         "--prune_left_bound_idx",
-        default=15,
+        default=12,
         type=int,
         help="Prune all slices with idx less than the left bound",
     )
     parser.add_argument(
         "--prune_right_bound_idx",
-        default=24,
+        default=29,
         type=int,
         help="Prune all slices with idx greater than the right bound",
     )
