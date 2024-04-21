@@ -13,12 +13,13 @@ import pytorch_lightning as pl
 from generate_heatmaps import generate_heatmaps, generate_rois
 from pytorch_lightning.loggers import TensorBoardLogger
 
+from fastmri.data import FastMRIRawDataSample
 from fastmri.data.mri_data import fetch_dir
 from fastmri.data.subsample import create_mask_for_mask_type
 from fastmri.data.transforms import UnetDataTransform
 from fastmri.pl_modules import FastMriDataModule, UnetModule
 from fastmri.pl_modules.unet_module import Loss
-from fastmri.data import FastMRIRawDataSample
+
 
 class MyProgressBar(pl.callbacks.TQDMProgressBar):
     # This class prevents the progress bar from printing on a new line every time.
@@ -102,7 +103,9 @@ def cli_main(args):
         num_workers=args.num_workers,
         distributed_sampler=(args.accelerator in ("ddp", "ddp_cpu")),
         # customly added filter to prune edge slices
-        train_filter=custom_train_filter
+        train_filter=custom_train_filter,
+        val_filter=custom_train_filter,
+        test_filter=custom_train_filter,
     )
 
     # ------------
