@@ -310,17 +310,5 @@ class UnetModule(MriModule):
             type=float,
             help="Strength of weight decay regularization",
         )
-        parser.add_argument(
-            "--prune_left_bound_idx",
-            default=15,
-            type=int,
-            help="Prune all slices with idx less than the left bound",
-        )
-        parser.add_argument(
-            "--prune_right_bound_idx",
-            default=24,
-            type=int,
-            help="Prune all slices with idx greater than the right bound",
-        )
 
         return parser
