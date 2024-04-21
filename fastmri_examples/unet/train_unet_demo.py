@@ -81,6 +81,7 @@ def cli_main(args):
 
     test_transform = UnetDataTransform(args.challenge)
 
+    print('prune_left_bound_idx:', args.prune_left_bound_idx, 'prune_right_bound_idx:', args.prune_right_bound_idx)
     def custom_train_filter(raw_sample: FastMRIRawDataSample) -> bool:
         if raw_sample.slice_ind < args.prune_left_bound_idx or raw_sample.slice_ind > args.prune_right_bound_idx:
             return False
@@ -205,6 +206,18 @@ def build_args():
         default=Loss.MAE.value,
         help="Type of loss function to be used. wmae is the weighted mae. If you specify wmae"
         " you must specify the --annotations_path",
+    )
+    parser.add_argument(
+        "--prune_left_bound_idx",
+        default=15,
+        type=int,
+        help="Prune all slices with idx less than the left bound",
+    )
+    parser.add_argument(
+        "--prune_right_bound_idx",
+        default=24,
+        type=int,
+        help="Prune all slices with idx greater than the right bound",
     )
 
     # data config with path to fastMRI data and batch size
