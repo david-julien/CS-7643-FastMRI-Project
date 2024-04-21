@@ -303,6 +303,14 @@ class FastMriDataModule(pl.LightningDataModule):
             for i, (data_path, data_transform) in enumerate(
                 zip(data_paths, data_transforms)
             ):
+                raw_sample_filter = None
+                if f"{self.challenge}_train" in str(data_path):
+                    raw_sample_filter = self.train_filter
+                elif f"{self.challenge}_val" in str(data_path):
+                    raw_sample_filter = self.val_filter
+                elif f"{self.challenge}_test" in str(data_path):
+                    raw_sample_filter = self.test_filter
+
                 # NOTE: Fixed so that val and test use correct sample rates
                 sample_rate = self.sample_rate  # if i == 0 else 1.0
                 volume_sample_rate = self.volume_sample_rate  # if i == 0 else None
@@ -313,6 +321,7 @@ class FastMriDataModule(pl.LightningDataModule):
                     volume_sample_rate=volume_sample_rate,
                     challenge=self.challenge,
                     use_dataset_cache=self.use_dataset_cache_file,
+                    raw_sample_filter=raw_sample_filter,
                 )
 
     def train_dataloader(self):
