@@ -70,7 +70,14 @@ def cli_main(args):
         heatmap_min_value=args.heatmap_min_value,
     )
 
-    roi_bounding_boxes = generate_rois(train_heatmaps, args.roi_min_value)
+    bb_heatmaps = generate_heatmaps(
+        dataset_path=args.data_path,
+        annotations_path=args.annotations_path,
+        dataset_type="train",
+        heatmap_min_value=0,
+    )
+
+    roi_bounding_boxes = generate_rois(bb_heatmaps, args.roi_min_value)
 
     # use random masks for train transform, fixed masks for val transform
     train_transform = UnetDataTransform(
