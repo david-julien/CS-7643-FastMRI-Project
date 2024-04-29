@@ -1,5 +1,5 @@
 # CS-7643 FastMRI Project
-This repository is a copy of the facebook FastMRI repository that includes the changes we made to implement our experiments for the final project of CS-7643. 
+This repository is a copy of the facebook FastMRI repository that includes the changes our team made to implement our experiments for the final project of CS-7643. 
 
 # fastMRI
 
